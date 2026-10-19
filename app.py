@@ -12,9 +12,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
         
-        # 获取当前时间
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        html_content = f"<h1>Hello, 这是一个自动化部署的网页！</h1><p>本次容器启动时间: {now}</p>"
+        # 👇 获取北京时间（东八区）
+        tz = datetime.timezone(datetime.timedelta(hours=8))
+        now = datetime.datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+        
+        html_content = f"<h1>Hello, 这是一个自动化部署的网页！</h1><p>本次部署时间: {now}</p>"
         
         self.wfile.write(html_content.encode('utf-8'))
 
