@@ -39,7 +39,7 @@ jobs:
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH' # 只拦截致命和高危漏洞
-
+          
   deploy:
     needs: build-and-push
     # 只有当 build-and-push 里面所有的步骤（包括测试和扫描）都成功后，这个才会执行
@@ -57,3 +57,31 @@ jobs:
             docker stop my-web-app || true
             docker rm my-web-app || true
             docker run -d --name my-web-app -p 8080:8000 ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
+    
+  notify:
+    # 关键：needs 表示它依赖前面的任务；always() 表示无论前面成功还是失败，它都会运行
+    needs: [build-and-push, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send DingTalk Notification
+        run: |
+          # 判断前置任务的状态
+          if [ "${{ needs.build-and-push.result }}" == "success" ] && [ "${{ needs.deploy.result }}" == "success" ]; then
+            STATUS="✅ 成功"
+            COLOR="info"
+          else
+            STATUS="❌ 失败"
+            COLOR="warning"
+          fi
+          
+          # 构造 JSON 消息体，注意消息里必须包含你设置的“自定义关键词”（比如“部署”）
+          curl -H "Content-Type: application/json" \
+          -d "{
+            \"msgtype\": \"markdown\",
+            \"markdown\": {
+              \"title\": \"CI/CD 部署通知\",
+              \"text\": \"### 🚀 自动化部署通知\n\n- **状态**: ${STATUS}\n- **项目**: ${{ github.repository }}\n- **分支**: ${{ github.ref_name }}\n- **提交人**: ${{ github.actor }}\n- **提交信息**: ${{ github.event.head_commit.message }}\n\n[点击查看日志](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\"
+            }
+          }" \
+          ${{ secrets.DINGTALK_WEBHOOK }}
