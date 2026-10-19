@@ -1,4 +1,4 @@
-name: Build, Push and Deploy
+name: Build, Push to ACR and Deploy
 
 on:
   push:
@@ -7,27 +7,21 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # 登录阿里云 ACR
+      - name: Log in to Aliyun ACR
+        run: |
+          echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_REGISTRY }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
 
-      - name: Build and push
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true
-          tags: ghcr.io/${{ github.repository }}:latest
+      # 构建并推送到阿里云 ACR
+      - name: Build and push to ACR
+        run: |
+          IMAGE_TAG=${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
+          docker build -t $IMAGE_TAG .
+          docker push $IMAGE_TAG
 
   deploy:
     needs: build-and-push
@@ -40,12 +34,15 @@ jobs:
           username: root
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            # 1. 使用国内代理拉取镜像（这里换成了南京大学代理）
-            docker pull ghcr.nju.edu.cn/${{ github.repository }}:latest
+            # 1. 登录阿里云 ACR（服务器拉取私有镜像也必须登录）
+            echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_REGISTRY }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
+
+            # 2. 从阿里云 ACR 拉取最新的镜像（速度起飞！）
+            docker pull ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
             
-            # 2. 删除旧的容器（如果存在，|| true 防止报错中断）
+            # 3. 删除旧容器（|| true 防止报错）
             docker stop my-web-app || true
             docker rm my-web-app || true
             
-            # 3. 运行新容器，映射到服务器的 8080 端口（注意这里的镜像地址也要用代理）
-            docker run -d --name my-web-app -p 8080:8000 ghcr.nju.edu.cn/${{ github.repository }}:latest
+            # 4. 运行新容器
+            docker run -d --name my-web-app -p 8080:8000 ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
