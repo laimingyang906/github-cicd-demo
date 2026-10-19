@@ -15,7 +15,7 @@ jobs:
       - name: Set up Python and Run Tests
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install -r requirements.txt
           python -m pytest test_app.py
           # 如果测试不通过，流水线会在这里直接报错退出，后面的打包和部署全都会停止！
 
