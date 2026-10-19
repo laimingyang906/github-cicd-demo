@@ -61,7 +61,7 @@ jobs:
             # 2. 启动新容器
             docker run -d --name my-web-app-new -p 8081:8000 ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
 
-            # 3. 🛡️ 终极健康检查：探测 8081 端口是否真的活了
+            # 3. 🛡️ 健康检查：探测 8081 端口是否真的活了
             echo "等待新容器启动并检查健康状态..."
             HEALTHY=false
             for i in {1..10}; do
@@ -74,7 +74,7 @@ jobs:
                 sleep 2
             done
 
-            # 4. 如果没通过，立刻中止，不切 Nginx，保证旧服务不死
+            # 4. 如果没通过，中止部署
             if [ "$HEALTHY" != "true" ]; then
                 echo "❌ 致命错误：新容器启动失败或健康检查未通过！终止部署。"
                 docker logs my-web-app-new
@@ -82,18 +82,23 @@ jobs:
                 exit 1
             fi
 
+            # 👇👇👇 就是下面这段，IP 已经全部改成了 172.17.0.1 👇👇👇
             # 5. 动态切换 Nginx 端口
             CONF_FILE="/root/myapp-nginx/conf.d/default.conf"
-            if grep -q "proxy_pass http://39.106.44.177:8080;" $CONF_FILE; then
-                sed -i 's/proxy_pass http:\/\/39.106.44.177:8080;/proxy_pass http:\/\/39.106.44.177:8081;/' $CONF_FILE
+            if grep -q "proxy_pass http://172.17.0.1:8080;" $CONF_FILE; then
+                sed -i 's/proxy_pass http:\/\/172.17.0.1:8080;/proxy_pass http:\/\/172.17.0.1:8081;/' $CONF_FILE
             else
-                sed -i 's/proxy_pass http:\/\/39.106.44.177:8081;/proxy_pass http:\/\/39.106.44.177:8080;/' $CONF_FILE
+                sed -i 's/proxy_pass http:\/\/172.17.0.1:8081;/proxy_pass http:\/\/172.17.0.1:8080;/' $CONF_FILE
             fi
+            # 👆👆👆 替换到上面为止 👆👆👆
             
+            # 6. 让门卫重载配置
             docker exec myapp-nginx nginx -s reload
 
-            # 6. 删除旧容器，给新容器改名
+            # 7. 清理旧容器
             docker rm -f my-web-app || true
+            
+            # 8. 改名
             docker rename my-web-app-new my-web-app
   notify:
     # 关键：needs 表示它依赖前面的任务；always() 表示无论前面成功还是失败，它都会运行
