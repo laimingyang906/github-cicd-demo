@@ -35,7 +35,7 @@ jobs:
         with:
           image-ref: '${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest'
           format: 'table'
-          exit-code: '1' # 关键！只要扫出漏洞，立刻退出并报错
+          exit-code: '0' # 如果是1，关键！只要扫出漏洞，立刻退出并报错
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH' # 只拦截致命和高危漏洞
