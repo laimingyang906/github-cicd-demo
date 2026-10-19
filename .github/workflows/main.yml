@@ -1,0 +1,48 @@
+name: Build, Push to ACR and Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 登录阿里云 ACR
+      - name: Log in to Aliyun ACR
+        run: |
+          echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_REGISTRY }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
+
+      # 构建并推送到阿里云 ACR
+      - name: Build and push to ACR
+        run: |
+          IMAGE_TAG=${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
+          docker build -t $IMAGE_TAG .
+          docker push $IMAGE_TAG
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Aliyun Server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: root
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            # 1. 登录阿里云 ACR（服务器拉取私有镜像也必须登录）
+            echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_REGISTRY }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
+
+            # 2. 从阿里云 ACR 拉取最新的镜像（速度起飞！）
+            docker pull ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
+            
+            # 3. 删除旧容器（|| true 防止报错）
+            docker stop my-web-app || true
+            docker rm my-web-app || true
+            
+            # 4. 运行新容器
+            docker run -d --name my-web-app -p 8080:8000 ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
