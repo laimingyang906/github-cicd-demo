@@ -55,51 +55,41 @@ jobs:
             echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_REGISTRY }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
             docker pull ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
 
-            # 1. 强制清理旧的新容器，防止端口占用
+            # 1. 启动新容器，加入 my-net 网络，并给一个临时别名
             docker rm -f my-web-app-new || true
-            
-            # 2. 启动新容器
-            docker run -d --name my-web-app-new -p 8081:8000 ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
+            docker run -d --name my-web-app-new --network my-net ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
 
-            # 3. 🛡️ 健康检查：探测 8081 端口是否真的活了
-            echo "等待新容器启动并检查健康状态..."
+            # 2. 健康检查（直接通过容器名测试，不需要宿主机的端口了）
+            echo "等待新容器启动..."
             HEALTHY=false
             for i in {1..10}; do
-                if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8081 | grep -q "200"; then
+                if docker exec myapp-nginx curl -s -o /dev/null -w "%{http_code}" http://my-web-app-new:8000 | grep -q "200"; then
                     echo "✅ 新容器健康检查通过！"
                     HEALTHY=true
                     break
                 fi
-                echo "第 $i 次检查未通过，等待 2 秒..."
                 sleep 2
             done
 
-            # 4. 如果没通过，中止部署
             if [ "$HEALTHY" != "true" ]; then
-                echo "❌ 致命错误：新容器启动失败或健康检查未通过！终止部署。"
+                echo "❌ 致命错误：新容器启动失败！"
                 docker logs my-web-app-new
                 docker rm -f my-web-app-new
                 exit 1
             fi
 
-            # 👇👇👇 就是下面这段，IP 已经全部改成了 172.17.0.1 👇👇👇
-            # 5. 动态切换 Nginx 端口
+            # 3. 修改 Nginx 配置，指向新容器的名字
             CONF_FILE="/root/myapp-nginx/conf.d/default.conf"
-            if grep -q "proxy_pass http://172.17.0.1:8080;" $CONF_FILE; then
-                sed -i 's/proxy_pass http:\/\/172.17.0.1:8080;/proxy_pass http:\/\/172.17.0.1:8081;/' $CONF_FILE
-            else
-                sed -i 's/proxy_pass http:\/\/172.17.0.1:8081;/proxy_pass http:\/\/172.17.0.1:8080;/' $CONF_FILE
-            fi
-            # 👆👆👆 替换到上面为止 👆👆👆
-            
-            # 6. 让门卫重载配置
+            sed -i 's/proxy_pass http:\/\/my-web-app:8000;/proxy_pass http:\/\/my-web-app-new:8000;/' $CONF_FILE
             docker exec myapp-nginx nginx -s reload
 
-            # 7. 清理旧容器
+            # 4. 删除旧容器
             docker rm -f my-web-app || true
             
-            # 8. 改名
+            # 5. 把新容器改名为 my-web-app，并修改 Nginx 配置改回来，完成无缝交接！
             docker rename my-web-app-new my-web-app
+            sed -i 's/proxy_pass http:\/\/my-web-app-new:8000;/proxy_pass http:\/\/my-web-app:8000;/' $CONF_FILE
+            docker exec myapp-nginx nginx -s reload
   notify:
     # 关键：needs 表示它依赖前面的任务；always() 表示无论前面成功还是失败，它都会运行
     needs: [build-and-push, deploy]
