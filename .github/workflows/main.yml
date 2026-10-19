@@ -11,20 +11,38 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 登录阿里云 ACR
+      # 👇 新增 1：代码质量门禁（跑单元测试）
+      - name: Set up Python and Run Tests
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pytest test_app.py
+          # 如果测试不通过，流水线会在这里直接报错退出，后面的打包和部署全都会停止！
+
       - name: Log in to Aliyun ACR
         run: |
           echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_REGISTRY }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
 
-      # 构建并推送到阿里云 ACR
       - name: Build and push to ACR
         run: |
           IMAGE_TAG=${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
           docker build -t $IMAGE_TAG .
           docker push $IMAGE_TAG
 
+      # 👇 新增 2：Trivy 镜像漏洞扫描（安全左移）
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest'
+          format: 'table'
+          exit-code: '1' # 关键！只要扫出漏洞，立刻退出并报错
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH' # 只拦截致命和高危漏洞
+
   deploy:
     needs: build-and-push
+    # 只有当 build-and-push 里面所有的步骤（包括测试和扫描）都成功后，这个才会执行
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Aliyun Server
@@ -34,15 +52,8 @@ jobs:
           username: root
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            # 1. 登录阿里云 ACR（服务器拉取私有镜像也必须登录）
             echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_REGISTRY }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
-
-            # 2. 从阿里云 ACR 拉取最新的镜像（速度起飞！）
             docker pull ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
-            
-            # 3. 删除旧容器（|| true 防止报错）
             docker stop my-web-app || true
             docker rm my-web-app || true
-            
-            # 4. 运行新容器
             docker run -d --name my-web-app -p 8080:8000 ${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/github-cicd-demo:latest
