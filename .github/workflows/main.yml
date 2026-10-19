@@ -40,15 +40,12 @@ jobs:
           username: root
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            # 登录 GitHub 镜像仓库（如果是私有仓库必须登录，公开仓库无所谓，写着更严谨）
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # 1. 使用国内代理拉取镜像（这里换成了南京大学代理）
+            docker pull ghcr.nju.edu.cn/${{ github.repository }}:latest
             
-            # 拉取最新镜像
-            docker pull ghcr.io/${{ github.repository }}:latest
-            
-            # 删除旧容器（如果有的话，|| true 表示报错也不中断）
+            # 2. 删除旧的容器（如果存在，|| true 防止报错中断）
             docker stop my-web-app || true
-            docker rm my-feed-app || true
+            docker rm my-web-app || true
             
-            # 运行新容器，映射到服务器的 8080 端口（注意：你服务器上的 8080 可能被占用，如果占用了请换成 8081）
-            docker run -d --name my-web-app -p 8080:8000 ghcr.io/${{ github.repository }}:latest
+            # 3. 运行新容器，映射到服务器的 8080 端口（注意这里的镜像地址也要用代理）
+            docker run -d --name my-web-app -p 8080:8000 ghcr.nju.edu.cn/${{ github.repository }}:latest
