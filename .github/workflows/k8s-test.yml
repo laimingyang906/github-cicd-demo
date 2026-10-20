@@ -1,0 +1,52 @@
+name: K8s Deployment Test with Kind
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: # 允许手动点击触发
+
+jobs:
+  k8s-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 1. 在 GitHub 机器上构建你的镜像
+      - name: Build Docker Image
+        run: |
+          docker build -t github-cicd-demo:latest .
+
+      # 2. 创建一个 kind 集群
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.8.0
+        with:
+          cluster_name: kind-test-cluster
+
+      # 3. 把刚才构建的镜像塞进 kind 集群里（关键步骤，否则 K8s 找不到镜像）
+      - name: Load image into kind
+        run: |
+          kind load docker-image github-cicd-demo:latest --name kind-test-cluster
+
+      # 4. 验证 K8s 环境
+      - name: Verify kubectl
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      # 5. 部署应用
+      - name: Deploy App to K8s
+        run: |
+          kubectl apply -f deployment.yaml
+          kubectl apply -f service.yaml
+
+      # 6. 验证部署状态（等待滚动更新完成）
+      - name: Wait for deployment rollout
+        run: |
+          kubectl rollout status deployment/my-web-app --timeout=60s
+
+      # 7. 查看运行状态
+      - name: Check Pods and Services
+        run: |
+          kubectl get pods
+          kubectl get svc
