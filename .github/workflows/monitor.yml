@@ -10,7 +10,7 @@ jobs:
   check_website:
     runs-on: ubuntu-latest
     steps:
-      - name: Check Website Status
+      - name: Check Website Status      
         id: check
         run: |
           # 请求你的网页，如果状态码不是 200，就报错
@@ -20,17 +20,17 @@ jobs:
             echo "Website is DOWN!"
             exit 1
           fi
-
+      
       - name: Send DingTalk Alert if Failed
-        if: failure() # 只有当上面那一步失败时才发送
+        if: failure() 
         run: |
-          # 构建告警消息（这里直接用你之前配的钉钉 Webhook）
+          # 构建告警消息（在文本里加上了“部署”和“告警”这两个常见关键词，确保钉钉能放行）
           curl -H "Content-Type: application/json" \
           -d '{
             "msgtype": "markdown",
             "markdown": {
-              "title": "🚨 网页宕机告警",
-              "text": "### 🚨 紧急告警：业务不可用\n\n- **监控目标**: http://39.106.44.177:8000\n- **错误状态**: 访问失败或非 200 响应\n- **处理建议**: 请立即检查服务器和 Nginx 状态！"
+              "title": "🚨 监控告警：网页宕机",
+              "text": "### 🚨 告警通知：业务不可用\n\n- **监控目标**: http://39.106.44.177:8000\n- **错误状态**: 访问失败或非 200 响应\n- **部署状态**: 异常中断\n- **处理建议**: 请立即检查服务器和 Nginx 状态！"
             }
           }' \
-          ${{ secrets.DINGTALK_WEBHOOK }} # 复用你之前配置的 Secret
+          ${{ secrets.DINGTALK_WEBHOOK }}
