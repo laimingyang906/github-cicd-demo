@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-web-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-web-app
+  template:
+    metadata:
+      labels:
+        app: my-web-app
+    spec:
+      containers:
+      - name: my-web-app
+        # 注意：因为我们在 GitHub Actions 里运行，这里写本地构建的镜像名
+        image: github-cicd-demo:latest
+        # 如果本地有就不去远程拉取
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
