@@ -11,7 +11,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 👇 新增 1：代码质量门禁（跑单元测试）
+      # 代码质量门禁（跑单元测试）
       - name: Set up Python and Run Tests
         run: |
           python -m pip install --upgrade pip
@@ -29,7 +29,7 @@ jobs:
           docker build -t $IMAGE_TAG .
           docker push $IMAGE_TAG
 
-      # 👇 新增 2：Trivy 镜像漏洞扫描（安全左移）
+      # Trivy 镜像漏洞扫描（安全左移）
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
@@ -91,7 +91,7 @@ jobs:
             sed -i 's/proxy_pass http:\/\/my-web-app-new:8000;/proxy_pass http:\/\/my-web-app:8000;/' $CONF_FILE
             docker exec myapp-nginx nginx -s reload
   notify:
-    # 关键：needs 表示它依赖前面的任务；always() 表示无论前面成功还是失败，它都会运行
+    # needs 表示它依赖前面的任务；always() 表示无论前面成功还是失败，它都会运行
     needs: [build-and-push, deploy]
     if: always()
     runs-on: ubuntu-latest
