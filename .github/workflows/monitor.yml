@@ -2,7 +2,7 @@ name: Website Health Monitor
 
 on:
   schedule:
-    # 每 30 分钟执行一次 (注意：GitHub 的 cron 用的是 UTC 时间)
+    # 每 30 分钟执行一次 (GitHub 的 cron 用的是 UTC 时间)
     - cron: '*/30 * * * *'
   workflow_dispatch: # 允许你手动点击按钮触发测试
 
@@ -24,7 +24,7 @@ jobs:
       - name: Send DingTalk Alert if Failed
         if: failure() 
         run: |
-          # 构建告警消息（在文本里加上了“部署”和“告警”这两个常见关键词，确保钉钉能放行）
+          # 构建告警消息
           curl -H "Content-Type: application/json" \
           -d '{
             "msgtype": "markdown",
