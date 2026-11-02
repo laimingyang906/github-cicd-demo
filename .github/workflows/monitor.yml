@@ -14,7 +14,7 @@ jobs:
         id: check
         run: |
           # 请求你的网页，如果状态码不是 200，就报错
-          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://39.106.44.177:8000)
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://123.56.194.88:8000)
           echo "当前状态码: $STATUS_CODE"
           if [ "$STATUS_CODE" -ne 200 ]; then
             echo "Website is DOWN!"
@@ -30,7 +30,7 @@ jobs:
             "msgtype": "markdown",
             "markdown": {
               "title": "🚨 监控告警：网页宕机",
-              "text": "### 🚨 告警通知：业务不可用\n\n- **监控目标**: http://39.106.44.177:8000\n- **错误状态**: 访问失败或非 200 响应\n- **部署状态**: 异常中断\n- **处理建议**: 请立即检查服务器和 Nginx 状态！"
+              "text": "### 🚨 告警通知：业务不可用\n\n- **监控目标**: http://123.56.194.88:8000\n- **错误状态**: 访问失败或非 200 响应\n- **部署状态**: 异常中断\n- **处理建议**: 请立即检查服务器和 Nginx 状态！"
             }
           }' \
           ${{ secrets.DINGTALK_WEBHOOK }}
